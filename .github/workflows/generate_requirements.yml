@@ -1,0 +1,52 @@
+name: Generate frozen requirements
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: tag of the Scilpy release
+        required: true
+        type: string
+
+jobs:
+  generate-requirements:
+    runs-on: ubuntu-latest
+
+    steps:
+      -
+        name: Setup python for Scilpy
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.7' 
+      -
+        name: Checkout Scilpy repository
+        uses: actions/checkout@v3
+        with:
+          repository: scilus/scilpy
+          ref: ${{ inputs.release_tag }}
+      -
+        name: Install Scilpy and freeze requirements
+        id: requirements
+        run: |
+          python3.7 -m pip install -e .
+          python3.7 -m pip freeze > requirements.${{ inputs.release_tag }}.frozen
+          echo "requirements-file=$PWD/requirements.${{ inputs.release_tag }}.frozen" >> $GITHUB_OUTPUT
+      -
+        name: Checkout this repository
+        uses: actions/checkout@v3
+      - 
+        name: Create branch for requirements file
+        run: |
+          git checkout -b scilpy-${{ inputs.release_tag }}
+          git config user.name "GitHub Actions"
+          git config user.email noreply@github.com
+          mv ${{ steps.requirements.outputs.requirements-file }} requirements.${{ inputs.release_tag }}.frozen
+          git add requirements.${{ inputs.release_tag }}.frozen
+          git commit --message "Generated frozen requirements for Scilpy ${{ inputs.release_tag }}"
+          git push origin scilpy-${{ inputs.release_tag }}
+      - 
+        name: Generate release tag associated to the branch
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          target_commitish: scilpy-${{ inputs.release_tag }}
