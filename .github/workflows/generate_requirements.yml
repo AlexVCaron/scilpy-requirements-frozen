@@ -7,6 +7,10 @@ on:
         description: tag of the Scilpy release
         required: true
         type: string
+      python_version:
+        description: version for the python interpreter
+        required: true
+        type: string
 
 jobs:
   generate-requirements:
@@ -17,7 +21,7 @@ jobs:
         name: Setup python for Scilpy
         uses: actions/setup-python@v4
         with:
-          python-version: '3.7' 
+          python-version: ${{ inputs.python_version }}
       -
         name: Checkout Scilpy repository
         uses: actions/checkout@v3
@@ -28,25 +32,34 @@ jobs:
         name: Install Scilpy and freeze requirements
         id: requirements
         run: |
-          python3.7 -m pip install -e .
-          python3.7 -m pip freeze > requirements.${{ inputs.release_tag }}.frozen
-          echo "requirements-file=$PWD/requirements.${{ inputs.release_tag }}.frozen" >> $GITHUB_OUTPUT
+          python${{ inputs.python_version }} -m pip install -e .
+          python${{ inputs.python_version }} -m pip freeze > requirements.frozen
+          echo "requirements-file=$PWD/requirements.frozen" >> $GITHUB_OUTPUT
       -
         name: Checkout this repository
         uses: actions/checkout@v3
+        with:
+          ref: main
       - 
         name: Create branch for requirements file
         run: |
-          git checkout -b scilpy-${{ inputs.release_tag }}
+          git checkout -b scilpy-${{ inputs.release_tag }}-py-${{ inputs.python_version }}
           git config user.name "GitHub Actions"
           git config user.email noreply@github.com
-          mv ${{ steps.requirements.outputs.requirements-file }} requirements.${{ inputs.release_tag }}.frozen
-          git add requirements.${{ inputs.release_tag }}.frozen
-          git commit --message "Generated frozen requirements for Scilpy ${{ inputs.release_tag }}"
-          git push origin scilpy-${{ inputs.release_tag }}
+          mv ${{ steps.requirements.outputs.requirements-file }} requirements.frozen
+          git add requirements.frozen
+          git commit --message "Generated frozen requirements for Scilpy ${{ inputs.release_tag }} | Python : ${{ inputs.python_version }}"
+          git push origin scilpy-${{ inputs.release_tag }}-py-${{ inputs.python_version }}
       - 
         name: Generate release tag associated to the branch
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ inputs.release_tag }}
-          target_commitish: scilpy-${{ inputs.release_tag }}
+          tag_name: ${{ inputs.release_tag }}-py-${{ inputs.python_version }}
+          target_commitish: scilpy-${{ inputs.release_tag }}-py-${{ inputs.python_version }}
+      -
+        name: Upload requirement file as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: requirements
+          path: ${{ steps.requirements.outputs.requirements-file }}
+
